@@ -1,0 +1,83 @@
+
+EXEC=slm
+
+IPO=
+INC_DIR=../inc
+OBJ_DIR=../obj
+LIB_DIR=../lib
+RUN_DIR=../run
+
+NETCDF_DIR=../../netcdf-fortran
+
+
+
+CHECK=-fpe0 -CB -CU -CA  -init=snan -init=arrays -ftrapuv
+#CHECK=-fpe0 
+#CHECK=
+
+ADDFL = -I $(NETCDF_DIR)/include $(CHECK) -mp1 -qopenmp -ftz -fpp  -shared-intel -mcmodel=medium -warn interfaces -module $(INC_DIR)
+OPTFL =   -fp-model fast=1 
+FFLAGS  =  ${OPTFL} -DMPI -DRHMC -DIA64 -fpp -traceback -r8 ${ADDFL}
+FFLAGS1  =  -r8 -fp-model precise -traceback -DMPI ${ADDFL}
+
+
+LDFLAGS  = -qopenmp ${OPTFL} ${ADDFL} -Wl,--no-relax
+
+F77 = ftn
+LIBS = -L${MKL_HOME}/lib/intel64 -Wl,--start-group -lmkl_sequential -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -Wl,--end-group
+
+
+OBJ1 = \
+      rrtmgp.o \
+
+OBJ2 = \
+      head.o \
+
+.SUFFIXES:
+.SUFFIXES: .o .c .f .f90
+OBJl=$(patsubst %.o, $(OBJ_DIR)/%.o, $(OBJ1))
+OBJh=$(patsubst %.o, $(OBJ_DIR)/%.o, $(OBJ2))
+
+OBJs=${OBJl} \
+      ${OBJh}
+
+default: slm400
+
+all :
+	make -f Makefile.intel slm400
+
+
+slm400: EXEC = "rrtmgp"
+slm400: exec
+
+
+exec: $(OBJs)
+	$(F77) $(LDFLAGS) -o $(EXEC) $(FFLAGS) $(ALLINC) $(OBJs) $(LIBS)
+	@if [[ -f ${EXEC} && -d ${RUN_DIR} ]]; then echo "cp ${EXEC} ${RUN_DIR}"; cp ${EXEC} ${RUN_DIR}; else echo "run directory ${RUN_DIR} or executable file ${EXEC} not found"; fi;
+
+$(OBJs): | inc_dir obj_dir
+
+inc_dir:
+	@[ -d $(OBJ_DIR) ] || (mkdir $(OBJ_DIR) && echo "Created obj dir "$(OBJ_DIR)) || (echo "cannot create obj dir:" $(OBJ_DIR) ; exit 1)
+obj_dir:
+	@[ -d $(INC_DIR) ] || (mkdir $(INC_DIR) && echo "Created inc dir "$(INC_DIR)) || (echo "cannot create inc dir:" $(INC_DIR) ; exit 1)
+                                                                                                             
+                                                                                                             
+lib: $(OBJl)
+	@ar cr ${LIB_SLM} $(OBJl)
+	@if [[ -f ${LIB_SLM} && -d ${LIB_DIR} ]]; then echo "cp ${LIB_SLM} ${LIB_DIR}"; cp ${LIB_SLM} ${LIB_DIR}; else echo "lib directory ${LIB_DIR} or lib file ${LIB_SLM} not found"; ls -l ${LIB_SLM}; fi;
+
+clean:
+	rm *.o *.mod *.lst  *.L $(EXEC) $(INC_DIR)/*.mod $(INC_DIR)/*_genmod.f90 $(OBJs) $(OBJ_DIR)/*.mod
+
+
+
+$(OBJ_DIR)/%.o: %.f
+	$(F77) $(FFLAGS) $(DEFINES) $(ALLINC) $(IPO) -c -o $@ $<
+
+$(OBJ_DIR)/%.o: %.f90
+	$(F77) $(FFLAGS) $(DEFINES) $(ALLINC) $(IPO) -c -o  $@ $<
+
+	
+	
+# ------------------------------------------------------------
